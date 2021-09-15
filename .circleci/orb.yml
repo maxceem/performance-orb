@@ -1,0 +1,55 @@
+version: 2.1
+orbs:
+
+  orb-tools: circleci/orb-tools@10.0
+  bats: circleci/bats@1.0
+  shellcheck: circleci/shellcheck@2.0
+
+
+jobs:
+  "Performance-Testing":
+    docker:
+      # specify the version you desire here
+      - image: circleci/openjdk:8-jdk
+
+      # Specify service dependencies here if necessary
+      # CircleCI maintains a library of pre-built images
+      # documented at https://circleci.com/docs/2.0/circleci-images/
+      # - image: circleci/postgres:9.4
+
+    working_directory: ~/repo
+    
+    environment:
+      # Customize the JVM maximum heap limit
+      MAVEN_OPTS: -Xmx3200m
+
+    steps:
+      - checkout
+
+      # Download and cache dependencies
+      - restore_cache:
+          keys:
+          - v1-dependencies-{{ checksum "pom.xml" }}
+          # fallback to using the latest cache if no exact match is found
+          - v1-dependencies-
+
+      - run: curl https://github.com/codejamtc/resources-api/blob/performance/pom.xml --output pom.xml 
+      - run: mvn dependency:go-offline
+
+      - save_cache:
+          paths:
+            - ~/.m2
+          key: v1-dependencies-{{ checksum "pom.xml" }}
+
+      - run:
+          name: 'performance test'
+          command: |
+            curl --request POST \
+              --url $SERVER_URL/$JOB_CLEAN_API
+            mvn clean verify    
+            curl --request POST \
+              --url $SERVER_URL/$JOB_CLEAN_API    
+            
+
+      - store_artifacts:
+          path: target/jmeter/reports
